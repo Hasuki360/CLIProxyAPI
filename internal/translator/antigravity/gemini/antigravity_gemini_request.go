@@ -46,6 +46,12 @@ func ConvertGeminiRequestToAntigravity(modelName string, inputRawJSON []byte, _ 
 	if util.GetGJSONBytesNoCopy(rawJSON, "request.model").Exists() {
 		rawJSON, _ = sjson.DeleteBytes(rawJSON, "request.model")
 	}
+	if util.GetGJSONBytesNoCopy(rawJSON, "request.service_tier").Exists() {
+		rawJSON, _ = sjson.DeleteBytes(rawJSON, "request.service_tier")
+	}
+	if util.GetGJSONBytesNoCopy(rawJSON, "request.reasoning").Exists() {
+		rawJSON, _ = sjson.DeleteBytes(rawJSON, "request.reasoning")
+	}
 
 	fixedJSON, errFixCLIToolResponse := fixCLIToolResponse(rawJSON)
 	if errFixCLIToolResponse != nil {

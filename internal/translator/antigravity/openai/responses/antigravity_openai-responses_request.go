@@ -10,6 +10,7 @@ import (
 	. "github.com/router-for-me/CLIProxyAPI/v7/internal/translator/gemini/openai/responses"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 func ConvertOpenAIResponsesRequestToAntigravity(modelName string, inputRawJSON []byte, stream bool) []byte {
@@ -17,6 +18,10 @@ func ConvertOpenAIResponsesRequestToAntigravity(modelName string, inputRawJSON [
 	rawJSON = ConvertOpenAIResponsesRequestToGemini(modelName, rawJSON, stream)
 	rawJSON = rewriteOpenAIResponsesReasoningForAntigravityClaude(modelName, inputRawJSON, rawJSON)
 	rawJSON = ConvertGeminiRequestToAntigravity(modelName, rawJSON, stream)
+	rawJSON, _ = sjson.DeleteBytes(rawJSON, "request.service_tier")
+	rawJSON, _ = sjson.DeleteBytes(rawJSON, "request.reasoning")
+	rawJSON, _ = sjson.DeleteBytes(rawJSON, "service_tier")
+	rawJSON, _ = sjson.DeleteBytes(rawJSON, "reasoning")
 	return enableAntigravityResponsesThinkingSummary(inputRawJSON, rawJSON)
 }
 

@@ -95,6 +95,10 @@ func (e *AntigravityExecutor) Execute(ctx context.Context, auth *cliproxyauth.Au
 	translated = helps.ApplyPayloadConfigWithRequest(e.cfg, baseModel, "antigravity", from.String(), "request", translated, originalTranslated, requestedModel, requestPath, opts.Headers)
 	translated = e.obfuscateSensitiveWords(translated)
 	translated = sanitizeAntigravityGeminiRequestSignatures(baseModel, translated)
+	translated, _ = sjson.DeleteBytes(translated, "request.service_tier")
+	translated, _ = sjson.DeleteBytes(translated, "request.reasoning")
+	translated, _ = sjson.DeleteBytes(translated, "service_tier")
+	translated, _ = sjson.DeleteBytes(translated, "reasoning")
 	reporter.SetTranslatedReasoningEffort(translated, to.String())
 
 	useCredits := cliproxyauth.AntigravityCreditsRequested(ctx) && antigravityCreditsRetryEnabled(e.cfg)
@@ -299,6 +303,10 @@ func (e *AntigravityExecutor) executeClaudeNonStream(ctx context.Context, auth *
 	translated = helps.ApplyPayloadConfigWithRequest(e.cfg, baseModel, "antigravity", from.String(), "request", translated, originalTranslated, requestedModel, requestPath, opts.Headers)
 	translated = e.obfuscateSensitiveWords(translated)
 	translated = sanitizeAntigravityGeminiRequestSignatures(baseModel, translated)
+	translated, _ = sjson.DeleteBytes(translated, "request.service_tier")
+	translated, _ = sjson.DeleteBytes(translated, "request.reasoning")
+	translated, _ = sjson.DeleteBytes(translated, "service_tier")
+	translated, _ = sjson.DeleteBytes(translated, "reasoning")
 	reporter.SetTranslatedReasoningEffort(translated, to.String())
 
 	useCredits := cliproxyauth.AntigravityCreditsRequested(ctx) && antigravityCreditsRetryEnabled(e.cfg)

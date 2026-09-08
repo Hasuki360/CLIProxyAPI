@@ -596,3 +596,37 @@ func TestConvertOpenAIResponsesRequestToAntigravity_FunctionCallOutputAlternateI
 		t.Fatalf("functionResponse.id = %q, want call_bash_1", responseID)
 	}
 }
+
+func TestConvertOpenAIResponsesRequestToAntigravity_StripsServiceTierAndReasoning(t *testing.T) {
+	codexInput := `{
+		"model": "gpt-5.6-terra",
+		"input": [{"role":"user","content":[{"type":"input_text","text":"hello"}]}],
+		"reasoning": {"effort": "medium"},
+		"service_tier": "priority"
+	}`
+	out := ConvertOpenAIResponsesRequestToAntigravity("gemini-3.8-flash-high", []byte(codexInput), false)
+
+	// Verify service_tier and raw reasoning fields are completely removed
+	if gjson.GetBytes(out, "request.service_tier").Exists() {
+		t.Fatalf("request.service_tier must be stripped, but found in output: %s", out)
+	}
+	if gjson.GetBytes(out, "service_tier").Exists() {
+		t.Fatalf("top-level service_tier must be stripped, but found in output: %s", out)
+	}
+	if gjson.GetBytes(out, "request.reasoning").Exists() {
+		t.Fatalf("request.reasoning must be stripped, but found in output: %s", out)
+	}
+	if gjson.GetBytes(out, "reasoning").Exists() {
+		t.Fatalf("top-level reasoning must be stripped, but found in output: %s", out)
+	}
+
+	// Verify thinking is properly mapped to Gemini format
+	thinkingLevel := gjson.GetBytes(out, "request.generationConfig.thinkingConfig.thinkingLevel").String()
+	if thinkingLevel != "medium" {
+		t.Fatalf("expected thinkingLevel medium, got %q. Output: %s", thinkingLevel, out)
+	}
+	includeThoughts := gjson.GetBytes(out, "request.generationConfig.thinkingConfig.includeThoughts").Bool()
+	if !includeThoughts {
+		t.Fatalf("expected includeThoughts true, got false. Output: %s", out)
+	}
+}

@@ -89,7 +89,12 @@ done <<EOF
 $CHANGED_FILES
 EOF
 
-echo "🔔 CLIProxyAPI 官方上游有新更新！"
+# 【只提醒相关】若上游无相关关键词且未触碰相关文件，则静默退出（不打扰）
+if [ -z "$ANTIGRAVITY_KEYWORD_HITS" ] && [ "$HIT_COUNT" -eq 0 ]; then
+  exit 0
+fi
+
+echo "🔔 CLIProxyAPI 官方上游有相关更新！"
 echo
 echo "1. 当前本地 HEAD: $HEAD"
 echo "2. 上游 main 最新: $UPSTREAM_HEAD"

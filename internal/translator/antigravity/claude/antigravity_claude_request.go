@@ -326,22 +326,17 @@ func ConvertClaudeRequestToAntigravity(modelName string, inputRawJSON []byte, _ 
 				if util.IsClaudeCodeAttributionSystemText(systemPrompt) {
 					continue
 				}
-				systemPrompt = util.CleanAntigravityIdentityText(systemPrompt)
-				if systemPrompt == "" {
-					continue
-				}
 				partJSON := []byte(`{}`)
-				partJSON, _ = sjson.SetBytes(partJSON, "text", systemPrompt)
+				if systemPrompt != "" {
+					partJSON, _ = sjson.SetBytes(partJSON, "text", systemPrompt)
+				}
 				systemParts = append(systemParts, partJSON)
 			}
 		}
 	} else if systemResult.Type == gjson.String && !util.IsClaudeCodeAttributionSystemText(systemResult.String()) {
-		systemPrompt := util.CleanAntigravityIdentityText(systemResult.String())
-		if systemPrompt != "" {
-			partJSON := []byte(`{"text":""}`)
-			partJSON, _ = sjson.SetBytes(partJSON, "text", systemPrompt)
-			systemParts = append(systemParts, partJSON)
-		}
+		partJSON := []byte(`{"text":""}`)
+		partJSON, _ = sjson.SetBytes(partJSON, "text", systemResult.String())
+		systemParts = append(systemParts, partJSON)
 	}
 
 	// contents

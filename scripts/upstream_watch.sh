@@ -7,7 +7,7 @@ export PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
 export LANG=C.UTF-8
 export LC_ALL=C.UTF-8
 
-REPO_DIR="/www/234G/CLIProxyAPI-Hasuki"
+REPO_DIR="/www/234G/CLIProxyAPI-开发"
 GIT="/usr/bin/git"
 
 # 针对本次 Antigravity 修复的核心文件模式

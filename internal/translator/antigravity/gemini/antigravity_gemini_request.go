@@ -53,40 +53,6 @@ func ConvertGeminiRequestToAntigravity(modelName string, inputRawJSON []byte, _ 
 		rawJSON, _ = sjson.DeleteBytes(rawJSON, "request.reasoning")
 	}
 
-	// Defense: normalize OpenAI formatted payload if inadvertently sent to Gemini endpoint (e.g. upstream pass_through_body_enabled)
-	if util.GetGJSONBytesNoCopy(rawJSON, "request.messages").Exists() {
-		rawJSON = normalizeOpenAIPayloadInGeminiRequest(rawJSON)
-	}
-
-	// Defense: if temperature / top_p / max_tokens are placed at request top-level instead of generationConfig, normalize them
-	if temp := util.GetGJSONBytesNoCopy(rawJSON, "request.temperature"); temp.Exists() {
-		if !util.GetGJSONBytesNoCopy(rawJSON, "request.generationConfig.temperature").Exists() {
-			rawJSON, _ = sjson.SetBytes(rawJSON, "request.generationConfig.temperature", temp.Value())
-		}
-		rawJSON, _ = sjson.DeleteBytes(rawJSON, "request.temperature")
-	}
-	if topP := util.GetGJSONBytesNoCopy(rawJSON, "request.top_p"); topP.Exists() {
-		if !util.GetGJSONBytesNoCopy(rawJSON, "request.generationConfig.topP").Exists() {
-			rawJSON, _ = sjson.SetBytes(rawJSON, "request.generationConfig.topP", topP.Value())
-		}
-		rawJSON, _ = sjson.DeleteBytes(rawJSON, "request.top_p")
-	}
-	if maxTokens := util.GetGJSONBytesNoCopy(rawJSON, "request.max_tokens"); maxTokens.Exists() {
-		if !util.GetGJSONBytesNoCopy(rawJSON, "request.generationConfig.maxOutputTokens").Exists() {
-			rawJSON, _ = sjson.SetBytes(rawJSON, "request.generationConfig.maxOutputTokens", maxTokens.Value())
-		}
-		rawJSON, _ = sjson.DeleteBytes(rawJSON, "request.max_tokens")
-	}
-	if maxCompTokens := util.GetGJSONBytesNoCopy(rawJSON, "request.max_completion_tokens"); maxCompTokens.Exists() {
-		if !util.GetGJSONBytesNoCopy(rawJSON, "request.generationConfig.maxOutputTokens").Exists() {
-			rawJSON, _ = sjson.SetBytes(rawJSON, "request.generationConfig.maxOutputTokens", maxCompTokens.Value())
-		}
-		rawJSON, _ = sjson.DeleteBytes(rawJSON, "request.max_completion_tokens")
-	}
-	if util.GetGJSONBytesNoCopy(rawJSON, "request.stream").Exists() {
-		rawJSON, _ = sjson.DeleteBytes(rawJSON, "request.stream")
-	}
-
 	// Defense: ensure request.contents is non-empty before processing tool responses or sending to Antigravity
 	if contents := util.GetGJSONBytesNoCopy(rawJSON, "request.contents"); !contents.Exists() || !contents.IsArray() || contents.Get("#").Int() == 0 {
 		rawJSON, _ = sjson.SetRawBytes(rawJSON, "request.contents", []byte(`[{"role":"user","parts":[{"text":""}]}]`))
@@ -967,62 +933,4 @@ func fixCLIToolResponse(input []byte) ([]byte, error) {
 	result, _ := sjson.SetRawBytes(input, "request.contents", translatorcommon.JoinRawArray(contentItems))
 
 	return result, nil
-}
-
-func normalizeOpenAIPayloadInGeminiRequest(rawJSON []byte) []byte {
-	messages := util.GetGJSONBytesNoCopy(rawJSON, "request.messages")
-	if !messages.Exists() || !messages.IsArray() {
-		return rawJSON
-	}
-
-	var systemParts [][]byte
-	var contentItems [][]byte
-
-	messages.ForEach(func(_, msg gjson.Result) bool {
-		role := msg.Get("role").String()
-		content := msg.Get("content")
-
-		var text string
-		if content.Type == gjson.String {
-			text = content.String()
-		} else if content.IsArray() {
-			var textParts []string
-			content.ForEach(func(_, part gjson.Result) bool {
-				if part.Get("type").String() == "text" {
-					textParts = append(textParts, part.Get("text").String())
-				}
-				return true
-			})
-			text = strings.Join(textParts, "\n")
-		}
-
-		if role == "system" || role == "developer" {
-			if text != "" {
-				part, _ := sjson.SetBytes([]byte(`{}`), "text", text)
-				systemParts = append(systemParts, part)
-			}
-		} else {
-			targetRole := "user"
-			if role == "assistant" {
-				targetRole = "model"
-			}
-			item, _ := sjson.SetBytes([]byte(`{"parts":[{"text":""}]}`), "role", targetRole)
-			item, _ = sjson.SetBytes(item, "parts.0.text", text)
-			contentItems = append(contentItems, item)
-		}
-		return true
-	})
-
-	if len(systemParts) > 0 {
-		sysInst, _ := sjson.SetBytes([]byte(`{"role":"user"}`), "parts", []interface{}{})
-		sysInst = translatorcommon.SetRawArrayItems(sysInst, "parts", systemParts)
-		rawJSON, _ = sjson.SetRawBytes(rawJSON, "request.systemInstruction", sysInst)
-	}
-
-	if len(contentItems) == 0 {
-		contentItems = append(contentItems, []byte(`{"role":"user","parts":[{"text":""}]}`))
-	}
-	rawJSON = translatorcommon.SetRawArrayItems(rawJSON, "request.contents", contentItems)
-	rawJSON, _ = sjson.DeleteBytes(rawJSON, "request.messages")
-	return rawJSON
 }

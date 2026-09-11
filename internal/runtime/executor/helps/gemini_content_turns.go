@@ -85,7 +85,17 @@ func EnsureGeminiTrailingUserContent(payload []byte, path string) []byte {
 
 // EnsureGeminiBoundaryUserContent ensures that the contents array at the given path
 // both starts and ends with a user turn when sending to Gemini/Antigravity upstreams.
+// If contents is missing or empty, it pads a single empty user turn so upstream never
+// rejects the request with "contents is not specified".
 func EnsureGeminiBoundaryUserContent(payload []byte, path string) []byte {
+	contents := util.GetGJSONBytesNoCopy(payload, path)
+	if !contents.Exists() || !contents.IsArray() || len(contents.Array()) == 0 {
+		out, errSet := sjson.SetRawBytes(payload, path, translatorcommon.JoinRawArray([][]byte{emptyGeminiUserTurnJSON}))
+		if errSet != nil {
+			return payload
+		}
+		return out
+	}
 	payload = EnsureGeminiLeadingUserContent(payload, path)
 	return EnsureGeminiTrailingUserContent(payload, path)
 }

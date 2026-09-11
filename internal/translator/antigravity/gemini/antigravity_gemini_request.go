@@ -53,6 +53,11 @@ func ConvertGeminiRequestToAntigravity(modelName string, inputRawJSON []byte, _ 
 		rawJSON, _ = sjson.DeleteBytes(rawJSON, "request.reasoning")
 	}
 
+	// Defense: ensure request.contents is non-empty before processing tool responses or sending to Antigravity
+	if contents := util.GetGJSONBytesNoCopy(rawJSON, "request.contents"); !contents.Exists() || !contents.IsArray() || contents.Get("#").Int() == 0 {
+		rawJSON, _ = sjson.SetRawBytes(rawJSON, "request.contents", []byte(`[{"role":"user","parts":[{"text":""}]}]`))
+	}
+
 	fixedJSON, errFixCLIToolResponse := fixCLIToolResponse(rawJSON)
 	if errFixCLIToolResponse != nil {
 		return []byte{}

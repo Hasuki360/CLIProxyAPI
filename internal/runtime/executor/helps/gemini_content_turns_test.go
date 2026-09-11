@@ -214,4 +214,26 @@ func TestEnsureGeminiBoundaryUserContent(t *testing.T) {
 	if contents[2].Get("role").String() != "user" || contents[2].Get("parts.0.text").String() != "" {
 		t.Fatalf("trailing user turn missing: %s", out)
 	}
+
+	// Empty contents array should be padded with a single empty user turn
+	emptyJSON := `{"systemInstruction":{"parts":[{"text":"You are a translator"}]},"contents":[]}`
+	outEmpty := EnsureGeminiBoundaryUserContent([]byte(emptyJSON), "contents")
+	emptyContents := gjson.GetBytes(outEmpty, "contents").Array()
+	if len(emptyContents) != 1 {
+		t.Fatalf("empty contents len = %d, want 1; out=%s", len(emptyContents), outEmpty)
+	}
+	if emptyContents[0].Get("role").String() != "user" || emptyContents[0].Get("parts.0.text").String() != "" {
+		t.Fatalf("empty contents user turn missing or corrupted: %s", outEmpty)
+	}
+
+	// Missing contents field should be created with a single empty user turn
+	missingJSON := `{"systemInstruction":{"parts":[{"text":"You are a translator"}]}}`
+	outMissing := EnsureGeminiBoundaryUserContent([]byte(missingJSON), "contents")
+	missingContents := gjson.GetBytes(outMissing, "contents").Array()
+	if len(missingContents) != 1 {
+		t.Fatalf("missing contents len = %d, want 1; out=%s", len(missingContents), outMissing)
+	}
+	if missingContents[0].Get("role").String() != "user" || missingContents[0].Get("parts.0.text").String() != "" {
+		t.Fatalf("missing contents user turn missing or corrupted: %s", outMissing)
+	}
 }

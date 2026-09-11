@@ -501,6 +501,10 @@ func geminiToAntigravity(modelName string, payload []byte, projectID string, der
 		template, _ = sjson.SetRawBytes(template, "request.toolConfig", []byte(toolConfig.Raw))
 		template, _ = sjson.DeleteBytes(template, "toolConfig")
 	}
+	// Defense: ensure request.contents is non-empty before sending upstream to Antigravity
+	if contents := util.GetGJSONBytesNoCopy(template, "request.contents"); !contents.Exists() || !contents.IsArray() || len(contents.Array()) == 0 {
+		template, _ = sjson.SetRawBytes(template, "request.contents", []byte(`[{"role":"user","parts":[{"text":""}]}]`))
+	}
 	return template
 }
 

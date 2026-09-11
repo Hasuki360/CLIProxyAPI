@@ -1266,3 +1266,27 @@ func TestConvertGeminiRequestToAntigravity_PreservesExistingResponseSchema(t *te
 		t.Fatalf("request.generationConfig.responseJsonSchema should have been removed. Output: %s", out)
 	}
 }
+
+func TestConvertGeminiRequestToAntigravity_PadsEmptyOrMissingContents(t *testing.T) {
+	// Empty contents array
+	emptyInput := []byte(`{"contents":[],"systemInstruction":{"parts":[{"text":"You are a translator"}]}}`)
+	outEmpty := ConvertGeminiRequestToAntigravity("gemini-3.1-flash-lite", emptyInput, false)
+	contentsEmpty := gjson.GetBytes(outEmpty, "request.contents").Array()
+	if len(contentsEmpty) != 1 {
+		t.Fatalf("expected 1 user content turn for empty input, got %d: %s", len(contentsEmpty), outEmpty)
+	}
+	if contentsEmpty[0].Get("role").String() != "user" || contentsEmpty[0].Get("parts.0.text").String() != "" {
+		t.Fatalf("expected empty user turn, got: %s", contentsEmpty[0].Raw)
+	}
+
+	// Missing contents field
+	missingInput := []byte(`{"systemInstruction":{"parts":[{"text":"You are a translator"}]}}`)
+	outMissing := ConvertGeminiRequestToAntigravity("gemini-3.1-flash-lite", missingInput, false)
+	contentsMissing := gjson.GetBytes(outMissing, "request.contents").Array()
+	if len(contentsMissing) != 1 {
+		t.Fatalf("expected 1 user content turn for missing input, got %d: %s", len(contentsMissing), outMissing)
+	}
+	if contentsMissing[0].Get("role").String() != "user" || contentsMissing[0].Get("parts.0.text").String() != "" {
+		t.Fatalf("expected empty user turn, got: %s", contentsMissing[0].Raw)
+	}
+}

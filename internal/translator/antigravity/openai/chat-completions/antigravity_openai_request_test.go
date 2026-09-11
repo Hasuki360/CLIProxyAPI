@@ -600,3 +600,39 @@ func TestConvertOpenAIRequestToAntigravityToolChoiceNoneOmitsTools(t *testing.T)
 		})
 	}
 }
+
+func TestConvertOpenAIRequestToAntigravity_PadsEmptyOrMissingContents(t *testing.T) {
+	// Empty user content
+	emptyInput := []byte(`{
+		"model":"gemini-3.1-flash-lite",
+		"messages":[
+			{"role":"system","content":"You are a translator"},
+			{"role":"user","content":""}
+		]
+	}`)
+	outEmpty := ConvertOpenAIRequestToAntigravity("gemini-3.1-flash-lite", emptyInput, false)
+	contentsEmpty := gjson.GetBytes(outEmpty, "request.contents").Array()
+	if len(contentsEmpty) != 1 {
+		t.Fatalf("expected 1 user content turn for empty content, got %d: %s", len(contentsEmpty), outEmpty)
+	}
+	if contentsEmpty[0].Get("role").String() != "user" || contentsEmpty[0].Get("parts.0.text").String() != "" {
+		t.Fatalf("expected empty user turn, got: %s", contentsEmpty[0].Raw)
+	}
+
+	// System-only messages
+	systemInput := []byte(`{
+		"model":"gemini-3.1-flash-lite",
+		"messages":[
+			{"role":"system","content":"You are a translator"},
+			{"role":"system","content":"Translate accurately"}
+		]
+	}`)
+	outSystem := ConvertOpenAIRequestToAntigravity("gemini-3.1-flash-lite", systemInput, false)
+	contentsSystem := gjson.GetBytes(outSystem, "request.contents").Array()
+	if len(contentsSystem) != 1 {
+		t.Fatalf("expected 1 user content turn for system-only input, got %d: %s", len(contentsSystem), outSystem)
+	}
+	if contentsSystem[0].Get("role").String() != "user" || contentsSystem[0].Get("parts.0.text").String() != "" {
+		t.Fatalf("expected empty user turn, got: %s", contentsSystem[0].Raw)
+	}
+}

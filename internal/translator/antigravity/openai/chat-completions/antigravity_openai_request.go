@@ -324,7 +324,15 @@ func ConvertOpenAIRequestToAntigravity(modelName string, inputRawJSON []byte, _ 
 		if len(systemParts) > 0 {
 			out, _ = sjson.SetRawBytes(out, "request.systemInstruction", antigravityOpenAIContent("user", systemParts))
 		}
+		if len(contentItems) == 0 {
+			contentItems = append(contentItems, antigravityOpenAIContent("user", [][]byte{antigravityOpenAITextPart("")}))
+		}
 		out = translatorcommon.SetRawArrayItems(out, "request.contents", contentItems)
+	}
+
+	// Defense: ensure request.contents is non-empty before returning
+	if contents := util.GetGJSONBytesNoCopy(out, "request.contents"); !contents.Exists() || !contents.IsArray() || len(contents.Array()) == 0 {
+		out, _ = sjson.SetRawBytes(out, "request.contents", []byte(`[{"role":"user","parts":[{"text":""}]}]`))
 	}
 
 	// tools -> request.tools[].functionDeclarations + request.tools[].googleSearch/codeExecution/urlContext passthrough

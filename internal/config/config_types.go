@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	sdkpluginstore "github.com/router-for-me/CLIProxyAPI/v7/sdk/pluginstore"
@@ -144,6 +145,34 @@ type AntigravityConfig struct {
 
 	// ConnectionPool configures upstream HTTP connection pooling behavior for Antigravity.
 	ConnectionPool AntigravityConnectionPoolConfig `yaml:"connection-pool,omitempty" json:"connection-pool,omitempty"`
+
+	// ReverseProxy configures custom upstream reverse proxy behavior for Antigravity requests and token refresh.
+	ReverseProxy AntigravityReverseProxyConfig `yaml:"reverse-proxy,omitempty" json:"reverse-proxy,omitempty"`
+}
+
+// AntigravityReverseProxyConfig controls reverse proxy routing for Antigravity.
+type AntigravityReverseProxyConfig struct {
+	Enabled  *bool  `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	BaseURL  string `yaml:"base-url,omitempty" json:"base-url,omitempty"`
+	TokenURL string `yaml:"token-url,omitempty" json:"token-url,omitempty"`
+}
+
+func (c AntigravityConfig) IsReverseProxyEnabled() bool {
+	return c.ReverseProxy.Enabled != nil && *c.ReverseProxy.Enabled
+}
+
+func (c AntigravityConfig) ReverseProxyBaseURL() string {
+	if s := strings.TrimSpace(c.ReverseProxy.BaseURL); s != "" {
+		return strings.TrimRight(s, "/")
+	}
+	return "https://ag.hasuki.top"
+}
+
+func (c AntigravityConfig) ReverseProxyTokenURL() string {
+	if s := strings.TrimSpace(c.ReverseProxy.TokenURL); s != "" {
+		return s
+	}
+	return "https://ag.hasuki.top/token"
 }
 
 // AntigravityConnectionPoolConfig controls upstream HTTP/1.1 connection pooling behavior for Antigravity.

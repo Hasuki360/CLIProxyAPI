@@ -52,6 +52,7 @@ func (e *HTTPStatusError) StatusCode() int {
 
 // AntigravityAuth handles Antigravity OAuth authentication
 type AntigravityAuth struct {
+	cfg        *config.Config
 	httpClient *http.Client
 }
 
@@ -61,11 +62,23 @@ func NewAntigravityAuth(cfg *config.Config, httpClient *http.Client) *Antigravit
 		cfg = &config.Config{}
 	}
 	if httpClient != nil {
-		return &AntigravityAuth{httpClient: httpClient}
+		return &AntigravityAuth{cfg: cfg, httpClient: httpClient}
 	}
 	return &AntigravityAuth{
+		cfg:        cfg,
 		httpClient: util.SetProxy(&cfg.SDKConfig, &http.Client{}),
 	}
+}
+
+func resolveHost(base string) string {
+	parsed, err := url.Parse(base)
+	if err != nil {
+		return ""
+	}
+	if parsed.Host != "" {
+		return parsed.Host
+	}
+	return strings.TrimPrefix(strings.TrimPrefix(base, "https://"), "http://")
 }
 
 func (o *AntigravityAuth) shortUserAgent() string {
@@ -163,9 +176,17 @@ func (o *AntigravityAuth) ExchangeCodeForTokens(ctx context.Context, code, redir
 	data.Set("redirect_uri", redirectURI)
 	data.Set("grant_type", "authorization_code")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, TokenEndpoint, strings.NewReader(data.Encode()))
+	tokenURL := TokenEndpoint
+	if o.cfg != nil && o.cfg.Antigravity.IsReverseProxyEnabled() {
+		tokenURL = o.cfg.Antigravity.ReverseProxyTokenURL()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("antigravity token exchange: create request: %w", err)
+	}
+	if host := resolveHost(tokenURL); host != "" {
+		req.Host = host
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -257,10 +278,18 @@ func (o *AntigravityAuth) FetchProjectID(ctx context.Context, accessToken string
 		return "", fmt.Errorf("marshal request body: %w", errMarshal)
 	}
 
-	endpointURL := fmt.Sprintf("%s/%s:loadCodeAssist", APIEndpoint, APIVersion)
+	baseURL := APIEndpoint
+	if o.cfg != nil && o.cfg.Antigravity.IsReverseProxyEnabled() {
+		baseURL = o.cfg.Antigravity.ReverseProxyBaseURL()
+	}
+
+	endpointURL := fmt.Sprintf("%s/%s:loadCodeAssist", baseURL, APIVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, strings.NewReader(string(rawBody)))
 	if err != nil {
 		return "", fmt.Errorf("create request: %w", err)
+	}
+	if host := resolveHost(baseURL); host != "" {
+		req.Host = host
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Accept", "*/*")
@@ -335,11 +364,18 @@ func (o *AntigravityAuth) OnboardUser(ctx context.Context, accessToken, tierID s
 		}
 		reqCtx, cancel = context.WithTimeout(reqCtx, 30*time.Second)
 
-		endpointURL := fmt.Sprintf("%s/%s:onboardUser", DailyAPIEndpoint, APIVersion)
+		baseURL := DailyAPIEndpoint
+		if o.cfg != nil && o.cfg.Antigravity.IsReverseProxyEnabled() {
+			baseURL = o.cfg.Antigravity.ReverseProxyBaseURL()
+		}
+		endpointURL := fmt.Sprintf("%s/%s:onboardUser", baseURL, APIVersion)
 		req, errRequest := http.NewRequestWithContext(reqCtx, http.MethodPost, endpointURL, strings.NewReader(string(rawBody)))
 		if errRequest != nil {
 			cancel()
 			return "", fmt.Errorf("create request: %w", errRequest)
+		}
+		if host := resolveHost(baseURL); host != "" {
+			req.Host = host
 		}
 		req.Header.Set("Authorization", "Bearer "+accessToken)
 		req.Header.Set("Accept", "*/*")

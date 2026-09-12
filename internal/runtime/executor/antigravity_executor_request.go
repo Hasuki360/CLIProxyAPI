@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/misc"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/registry"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
@@ -31,7 +32,7 @@ func (e *AntigravityExecutor) buildRequest(ctx context.Context, auth *cliproxyau
 
 	base := strings.TrimSuffix(baseURL, "/")
 	if base == "" {
-		base = resolveAntigravityRequestBaseURL(auth)
+		base = e.resolveAntigravityRequestBaseURL(auth)
 	}
 	path := antigravityGeneratePath
 	if stream {
@@ -387,17 +388,47 @@ func antigravityRequestNeedsSchemaSanitization(payload []byte) bool {
 // resolveAntigravityRequestBaseURL selects one request endpoint without cross-tier fallback.
 // Consumer credentials default to daily; enterprise/GCP credentials can set base_url explicitly.
 func resolveAntigravityRequestBaseURL(auth *cliproxyauth.Auth) string {
+	return resolveAntigravityRequestBaseURLWithConfig(nil, auth)
+}
+
+func resolveAntigravityRequestBaseURLWithConfig(cfg *config.Config, auth *cliproxyauth.Auth) string {
 	if base := resolveCustomAntigravityBaseURL(auth); base != "" {
 		return base
+	}
+	if cfg != nil && cfg.Antigravity.IsReverseProxyEnabled() {
+		return cfg.Antigravity.ReverseProxyBaseURL()
 	}
 	return antigravityBaseURLDaily
 }
 
+func (e *AntigravityExecutor) resolveAntigravityRequestBaseURL(auth *cliproxyauth.Auth) string {
+	var cfg *config.Config
+	if e != nil {
+		cfg = e.cfg
+	}
+	return resolveAntigravityRequestBaseURLWithConfig(cfg, auth)
+}
+
 func antigravityLoadCodeAssistBaseURL(auth *cliproxyauth.Auth) string {
+	return antigravityLoadCodeAssistBaseURLWithConfig(nil, auth)
+}
+
+func antigravityLoadCodeAssistBaseURLWithConfig(cfg *config.Config, auth *cliproxyauth.Auth) string {
 	if base := resolveCustomAntigravityBaseURL(auth); base != "" {
 		return base
 	}
+	if cfg != nil && cfg.Antigravity.IsReverseProxyEnabled() {
+		return cfg.Antigravity.ReverseProxyBaseURL()
+	}
 	return antigravityBaseURLProd
+}
+
+func (e *AntigravityExecutor) antigravityLoadCodeAssistBaseURL(auth *cliproxyauth.Auth) string {
+	var cfg *config.Config
+	if e != nil {
+		cfg = e.cfg
+	}
+	return antigravityLoadCodeAssistBaseURLWithConfig(cfg, auth)
 }
 
 func resolveHost(base string) string {

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	sdktranslator "github.com/router-for-me/CLIProxyAPI/v7/sdk/translator"
 )
@@ -31,6 +32,92 @@ func TestResolveAntigravityRequestBaseURL(t *testing.T) {
 		auth := &cliproxyauth.Auth{Metadata: map[string]any{"base_url": "https://enterprise.example.com/"}}
 		if got := resolveAntigravityRequestBaseURL(auth); got != "https://enterprise.example.com" {
 			t.Fatalf("base URL = %q, want custom auth file endpoint", got)
+		}
+	})
+
+	t.Run("reverse proxy enabled routes to ag.hasuki.top by default", func(t *testing.T) {
+		trueVal := true
+		cfg := &config.Config{
+			Antigravity: config.AntigravityConfig{
+				ReverseProxy: config.AntigravityReverseProxyConfig{
+					Enabled: &trueVal,
+				},
+			},
+		}
+		e := NewAntigravityExecutor(cfg)
+		if got := e.resolveAntigravityRequestBaseURL(&cliproxyauth.Auth{}); got != "https://ag.hasuki.top" {
+			t.Fatalf("base URL = %q, want https://ag.hasuki.top", got)
+		}
+		if got := e.antigravityLoadCodeAssistBaseURL(&cliproxyauth.Auth{}); got != "https://ag.hasuki.top" {
+			t.Fatalf("loadCodeAssist base URL = %q, want https://ag.hasuki.top", got)
+		}
+	})
+
+	t.Run("reverse proxy enabled with custom base URL", func(t *testing.T) {
+		trueVal := true
+		cfg := &config.Config{
+			Antigravity: config.AntigravityConfig{
+				ReverseProxy: config.AntigravityReverseProxyConfig{
+					Enabled: &trueVal,
+					BaseURL: "https://custom-ag.example.com/",
+				},
+			},
+		}
+		e := NewAntigravityExecutor(cfg)
+		if got := e.resolveAntigravityRequestBaseURL(&cliproxyauth.Auth{}); got != "https://custom-ag.example.com" {
+			t.Fatalf("base URL = %q, want https://custom-ag.example.com", got)
+		}
+	})
+
+	t.Run("reverse proxy disabled routes to google official", func(t *testing.T) {
+		falseVal := false
+		cfg := &config.Config{
+			Antigravity: config.AntigravityConfig{
+				ReverseProxy: config.AntigravityReverseProxyConfig{
+					Enabled: &falseVal,
+				},
+			},
+		}
+		e := NewAntigravityExecutor(cfg)
+		if got := e.resolveAntigravityRequestBaseURL(&cliproxyauth.Auth{}); got != antigravityBaseURLDaily {
+			t.Fatalf("base URL = %q, want %q", got, antigravityBaseURLDaily)
+		}
+		if got := e.antigravityLoadCodeAssistBaseURL(&cliproxyauth.Auth{}); got != antigravityBaseURLProd {
+			t.Fatalf("loadCodeAssist base URL = %q, want %q", got, antigravityBaseURLProd)
+		}
+	})
+
+	t.Run("token URL resolution respects reverse proxy setting", func(t *testing.T) {
+		trueVal := true
+		cfg := &config.Config{
+			Antigravity: config.AntigravityConfig{
+				ReverseProxy: config.AntigravityReverseProxyConfig{
+					Enabled: &trueVal,
+				},
+			},
+		}
+		e := NewAntigravityExecutor(cfg)
+		tokenURL, tokenHost := e.resolveTokenURL()
+		if tokenURL != "https://ag.hasuki.top/token" {
+			t.Fatalf("tokenURL = %q, want https://ag.hasuki.top/token", tokenURL)
+		}
+		if tokenHost != "ag.hasuki.top" {
+			t.Fatalf("tokenHost = %q, want ag.hasuki.top", tokenHost)
+		}
+
+		// Custom token URL
+		cfg.Antigravity.ReverseProxy.TokenURL = "https://my-proxy.com/custom-token"
+		tokenURL, tokenHost = e.resolveTokenURL()
+		if tokenURL != "https://my-proxy.com/custom-token" || tokenHost != "my-proxy.com" {
+			t.Fatalf("custom tokenURL = %q (%q)", tokenURL, tokenHost)
+		}
+
+		// Disabled
+		falseVal := false
+		cfg.Antigravity.ReverseProxy.Enabled = &falseVal
+		tokenURL, tokenHost = e.resolveTokenURL()
+		if tokenURL != "https://oauth2.googleapis.com/token" || tokenHost != "oauth2.googleapis.com" {
+			t.Fatalf("disabled tokenURL = %q (%q)", tokenURL, tokenHost)
 		}
 	})
 }

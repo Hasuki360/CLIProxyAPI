@@ -449,12 +449,15 @@ func (e *AntigravityExecutor) updateAntigravityCreditsBalance(ctx context.Contex
 		log.Debugf("antigravity executor: marshal loadCodeAssist request error: %v", errMarshal)
 		return
 	}
-	baseURL := antigravityLoadCodeAssistBaseURL(auth)
+	baseURL := e.antigravityLoadCodeAssistBaseURL(auth)
 	endpointURL := strings.TrimSuffix(baseURL, "/") + "/v1internal:loadCodeAssist"
 	httpReq, errReq := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, bytes.NewReader(loadReqBody))
 	if errReq != nil {
 		log.Debugf("antigravity executor: create loadCodeAssist request error: %v", errReq)
 		return
+	}
+	if host := resolveHost(baseURL); host != "" {
+		httpReq.Host = host
 	}
 	httpReq.Header.Set("Authorization", "Bearer "+token)
 	httpReq.Header.Set("Accept", "*/*")

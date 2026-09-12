@@ -103,7 +103,7 @@ func (e *AntigravityExecutor) ExecuteStream(ctx context.Context, auth *cliproxya
 
 	useCredits := cliproxyauth.AntigravityCreditsRequested(ctx) && antigravityCreditsRetryEnabled(e.cfg)
 
-	baseURL := resolveAntigravityRequestBaseURL(auth)
+	baseURL := e.resolveAntigravityRequestBaseURL(auth)
 	httpClient := newAntigravityHTTPClient(ctx, e.cfg, auth, 0)
 	httpClient = reporter.TrackHTTPClient(httpClient)
 

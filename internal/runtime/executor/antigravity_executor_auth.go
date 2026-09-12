@@ -145,6 +145,18 @@ func (e *AntigravityExecutor) refreshToken(ctx context.Context, auth *cliproxyau
 	return auth, nil
 }
 
+func (e *AntigravityExecutor) resolveTokenURL() (string, string) {
+	tokenURL := "https://oauth2.googleapis.com/token"
+	tokenHost := "oauth2.googleapis.com"
+	if e != nil && e.cfg != nil && e.cfg.Antigravity.IsReverseProxyEnabled() {
+		tokenURL = e.cfg.Antigravity.ReverseProxyTokenURL()
+		if h := resolveHost(tokenURL); h != "" {
+			tokenHost = h
+		}
+	}
+	return tokenURL, tokenHost
+}
+
 func (e *AntigravityExecutor) refreshTokenSingleFlight(ctx context.Context, auth *cliproxyauth.Auth, refreshToken string) (*antigravityTokenRefreshData, error) {
 	form := url.Values{}
 	form.Set("client_id", antigravityClientID)
@@ -152,11 +164,14 @@ func (e *AntigravityExecutor) refreshTokenSingleFlight(ctx context.Context, auth
 	form.Set("grant_type", "refresh_token")
 	form.Set("refresh_token", refreshToken)
 
-	httpReq, errReq := http.NewRequestWithContext(ctx, http.MethodPost, "https://oauth2.googleapis.com/token", strings.NewReader(form.Encode()))
+	tokenURL, tokenHost := e.resolveTokenURL()
+
+	httpReq, errReq := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(form.Encode()))
 	if errReq != nil {
 		return nil, errReq
 	}
-	httpReq.Header.Set("Host", "oauth2.googleapis.com")
+	httpReq.Host = tokenHost
+	httpReq.Header.Set("Host", tokenHost)
 	httpReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	// Real Antigravity uses Go's default User-Agent for OAuth token refresh
 	httpReq.Header.Set("User-Agent", "Go-http-client/2.0")

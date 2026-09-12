@@ -76,6 +76,10 @@ func (s *Server) registerManagementRoutes() {
 		mgmt.PATCH("/quota-exceeded/switch-preview-model", s.mgmt.PutSwitchPreviewModel)
 		mgmt.POST("/reset-quota", s.mgmt.ResetQuota)
 
+		mgmt.GET("/antigravity/reverse-proxy", s.mgmt.GetAntigravityReverseProxy)
+		mgmt.PUT("/antigravity/reverse-proxy", s.mgmt.PutAntigravityReverseProxy)
+		mgmt.PATCH("/antigravity/reverse-proxy", s.mgmt.PutAntigravityReverseProxy)
+
 		mgmt.GET("/api-keys", s.mgmt.GetAPIKeys)
 		mgmt.PUT("/api-keys", s.mgmt.PutAPIKeys)
 		mgmt.PATCH("/api-keys", s.mgmt.PatchAPIKeys)

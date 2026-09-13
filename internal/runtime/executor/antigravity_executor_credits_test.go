@@ -45,6 +45,7 @@ func (c *closeSignalReadCloser) Close() error {
 }
 
 type fakeAntigravityKVClient struct {
+	mu           sync.Mutex
 	values       map[string][]byte
 	getErr       error
 	setErr       error
@@ -69,6 +70,8 @@ func newFakeAntigravityKVClient() *fakeAntigravityKVClient {
 }
 
 func (c *fakeAntigravityKVClient) KVGet(_ context.Context, key string) ([]byte, bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.getCount++
 	if c.getErr != nil {
 		return nil, false, c.getErr
@@ -81,6 +84,8 @@ func (c *fakeAntigravityKVClient) KVGet(_ context.Context, key string) ([]byte, 
 }
 
 func (c *fakeAntigravityKVClient) KVSet(_ context.Context, key string, value []byte, opts homekv.KVSetOptions) (bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.setCount++
 	c.lastSetKey = key
 	c.lastSetTTL = opts.EX
@@ -92,6 +97,8 @@ func (c *fakeAntigravityKVClient) KVSet(_ context.Context, key string, value []b
 }
 
 func (c *fakeAntigravityKVClient) KVSetNX(_ context.Context, key string, value []byte, ttl time.Duration) (bool, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.setNXCount++
 	c.lastSetNXKey = key
 	c.lastSetNXTTL = ttl
@@ -109,6 +116,8 @@ func (c *fakeAntigravityKVClient) KVSetNX(_ context.Context, key string, value [
 }
 
 func (c *fakeAntigravityKVClient) KVDel(_ context.Context, keys ...string) (int64, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.delCount++
 	if c.delErr != nil {
 		return 0, c.delErr

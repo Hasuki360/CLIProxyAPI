@@ -156,6 +156,25 @@ func (h *BaseAPIHandler) providersForExecution(modelName, originalRequestedModel
 	return h.getRequestDetailsWithOptions(modelName, allowImageModel)
 }
 
+// context1MRouteModel strips Claude Code's "[1m]" context-window marker so the
+// request routes, selects credentials, and resolves aliases as its base model.
+// The caller keeps the original name as the requested model, which is where
+// executors read the 1M intent from. A model registered under its full "[1m]"
+// name (e.g. a configured alias) is left intact.
+func (h *BaseAPIHandler) context1MRouteModel(modelName string) string {
+	stripped, has1M := util.StripContext1MSuffix(modelName)
+	if !has1M {
+		return modelName
+	}
+	homeEnabled := h != nil && h.AuthManager != nil && h.AuthManager.HomeEnabled()
+	if !homeEnabled {
+		if len(util.GetProviderName(strings.TrimSpace(thinking.ParseSuffix(modelName).ModelName))) > 0 {
+			return modelName
+		}
+	}
+	return stripped
+}
+
 func (h *BaseAPIHandler) getRequestDetailsWithOptions(modelName string, allowImageModel bool) (providers []string, normalizedModel string, err *interfaces.ErrorMessage) {
 	resolvedModelName := modelName
 	initialSuffix := thinking.ParseSuffix(modelName)

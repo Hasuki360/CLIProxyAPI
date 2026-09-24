@@ -1,0 +1,65 @@
+CLIProxyAPI 支持 Claude 1M 模式验证方案
+一、问题原因深度分析
+经过对当前代码库 /www/234G/CLIProxyAPI-开发 的深入排查，发现当前版本在处理 Claude 1M 上下文模式（客户端传入带 [1m] 后缀的模型如 claude-sonnet-4-5[1m]、claude-opus-5[1m]、claude-3-7-sonnet[1m] 或 1M 上下文请求）时，存在以下几处阻断性问题：
+
+路由与 Provider 解析失败（返回 HTTP 400 unknown provider for model）：
+在 sdk/api/handlers/handlers_routing.go 中，路由通过 thinking.ParseSuffix(resolvedModelName) 提取 baseModel。
+但 thinking.ParseSuffix 仅解析括号后缀 (...)（如 (high) 或 (16384)），不识别中括号 [1m]。
+导致 baseModel 依然保留 [1m]（如 claude-sonnet-4-5[1m]）。
+后续 util.GetProviderName(baseModel) 在模型注册表 registry.models 中查找，因没有任何模型以 [1m] 注册，直接查不到 Provider，路由直接返回 400 Bad Request: unknown provider for model ...[1m]。
+凭据鉴权筛选阶段失败（返回 no auth available）：
+在 sdk/cliproxy/auth/conductor_selection.go 中，authSupportsRouteModel 调用 canonicalModelKey(routeModel)。
+canonicalModelKey 同样只剥离 (...)，未剥离 [1m]。
+调用 registryRef.ClientSupportsModel(auth.ID, routeKey) 时，拿着带 [1m] 的名称去匹配账号注册的模型列表（注册的是标准名称如 claude-sonnet-4-5-20250929），匹配全部失败，导致所有可用凭据被过滤，提示无可用凭据。
+模型名称未剥离直接发给上游（Anthropic 报 400/404 model_not_found）：
+在 claude_executor_execute.go、claude_executor_stream.go 与 claude_executor_tokens.go 中： baseModel := thinking.ParseSuffix(req.Model).ModelName upstreamModel := e.upstreamModel(baseModel)
+当前 ClaudeExecutor 的 upstreamModelNormalizer 为 nil（对比 KimiExecutor 专门配置了 normalizeKimiUpstreamModel 剥离 [1m]）。
+导致发往 Anthropic 官方接口的请求体中 "model": "claude-sonnet-4-5[1m]"，Anthropic API 不认识 [1m] 模型后缀，直接报模型不存在。
+1M Beta 请求头未自动注入：
+Anthropic 官方的 1M 上下文窗口由 Beta 头 Anthropic-Beta: context-1m-2025-08-07 控制。
+在 claude_executor_request.go 的 claudeCodeCLIBetas 中，只有当 requested[claudeContext1MBeta] 为 true 时才会注入该请求头。
+而当前代码只从客户端传入的 Anthropic-Beta 或请求体的 "betas" 数组解析 requested，如果客户端（如 Claude Code CLI 指定了 --model sonnet[1m]、或者第三方客户端通过模型名称指定 1M 模式）未显式在 Header 带上完整的 context-1m-2025-08-07，网关不会自动激活 1M beta 头。
+响应模型名称未恢复 [1m]：
+客户端（Claude Code CLI、Cursor、Roo Code 等）请求 xxx[1m]，上游返回 xxx 时，若未在响应体及 SSE 流式数据块中将模型名还原为客户端请求的 xxx[1m]，会导致客户端认为模型不一致或降级。
+模型元数据与别名适配：
+internal/registry/models/models.json 中已有支持 1M 的模型（Opus 4.6+、Sonnet 5、Fable 5 等其 context_length 为 1000000），但对于常用的非日期别名及带 [1m] 变体，模型注册表与查询逻辑需无缝支持。
+二、修改方案与实现步骤
+1. 通用上下文后缀解析与提取（internal/thinking 或 internal/util）
+在 internal/thinking/suffix.go（或 internal/util/claude_model.go）中新增通用识别与剥离上下文模式后缀的工具函数：
+ParseContextSuffix(model string) (baseModel string, contextSuffix string, has1M bool)
+支持识别不区分大小写的 [1m]、[2m]、[1M] 等后缀。
+兼容组合格式，例如 claude-sonnet-4-5[1m](high) 或 claude-opus-5(16384)[1m]：
+正确拆解为基础模型名 claude-sonnet-4-5、思考后缀 (high) 与 1M 上下文标识 has1M = true。
+2. 路由与模型解析层改造（handlers_routing.go & selector.go）
+sdk/api/handlers/handlers_routing.go：
+在 getRequestDetailsWithOptions 中提取 baseModel 时，同时剥离 [1m] 后缀进行 Provider 查找，使 claude-sonnet-4-5[1m] 能够正常解析为 claude 提供商。
+sdk/cliproxy/auth/selector.go：
+增强 canonicalModelKey(model string)：不仅通过 thinking.ParseSuffix 剥离括号思考后缀，同时剥离 [1m] 后缀。
+使得会话亲和性缓存、模型状态监控（Cooldown）、调度器分区键以及 authSupportsRouteModel 都能将 xxx[1m] 正确对应到账号实际绑定的 xxx 模型，解决鉴权筛选失败问题。
+3. 上游模型名称规范化与响应还原（claude_executor.go 等）
+internal/runtime/executor/claude_executor.go：
+为 ClaudeExecutor 增加默认的 normalizeClaudeUpstreamModel 规约逻辑（当 upstreamModelNormalizer 未显式指定时生效）：
+剥离模型中的 [1m] 后缀；
+保留可能附带的思考后缀 (...)；
+支持未带日期别名映射（例如 claude-3-7-sonnet -> claude-3-7-sonnet-20250219，若配置允许）。
+在 restoreResponseModel 中，如果客户端请求带 [1m]，在上游返回或 SSE 流推送时将模型名无缝还原为客户端所请求的 [1m] 模型。
+4. 自动检测并注入 context-1m-2025-08-07 Beta 头（claude_executor_request.go）
+在 applyClaudeHeadersWithNativeProfile 中检测 1M 需求：
+触发条件：
+原始请求模型名中含有 [1m]；或
+客户端请求携带了 Anthropic-Beta: context-1m-2025-08-07；或
+客户端请求体 betas 包含 context-1m-2025-08-07；或
+携带了兼容标头 X-CPA-CLAUDE-1M: true。
+处理动作：
+将 requestedMap[claudeContext1MBeta] 标记为 true。
+针对支持 1M 上下文的模型（如 Claude 4 系列及以上：Sonnet 4/4.5/4.6、Opus 4.6/4.7/4.8/5、Fable 5 等），按 Claude Code 2.1.x 原生协议顺序，在 Header 第 3 位注入 context-1m-2025-08-07。
+严格遵循 Anthropic 原生客户端指纹顺序：claude-code-20250219 -> oauth-2025-04-20 -> context-1m-2025-08-07 -> interleaved-thinking-...。
+5. OpenAI 格式转 Claude 格式的 1M 模式支持（internal/translator）
+在 internal/translator/openai/claude/ 中：
+当通过 /v1/chat/completions 或 /v1/responses 访问并指定了 [1m] 模型时，正确将 1M 标志透传，以便后端调用 Anthropic 时正确挂载 context-1m-2025-08-07。
+6. 测试与验证
+编写/补充针对 Claude 1M 模式的完整单元测试：
+测试 TestClaudeExecutor_Context1M_SuffixStripping（模型名剥离 [1m]、响应恢复 [1m]）；
+测试 TestClaudeExecutor_Context1M_BetaHeaderPlacement（验证 context-1m-2025-08-07 头部精确插入位置）；
+测试 TestRouting_Context1M_ModelResolution（验证 claude-sonnet-4-5[1m](high) Provider 查找与账号凭据匹配）；
+运行 go test ./internal/runtime/executor/...、go test ./sdk/api/handlers/... 和 go test ./sdk/cliproxy/... 确保所有已有回归测试与新测试全部通过。

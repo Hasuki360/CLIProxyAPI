@@ -23,7 +23,6 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/config"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/misc"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/runtime/executor/helps"
-	"github.com/router-for-me/CLIProxyAPI/v7/internal/thinking"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/util"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
 	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
@@ -609,74 +608,6 @@ func withClaudeAdvisorToolBeta(betas string) string {
 	return strings.Join(parts, ",")
 }
 
-// withClaudeContext1MBeta ensures context-1m-2025-08-07 is present at its native
-// wire position: right after claude-code-20250219 and oauth-2025-04-20, or first
-// when neither leads the list.
-func withClaudeContext1MBeta(betas string) string {
-	if strings.TrimSpace(betas) == "" {
-		return claudeContext1MBeta
-	}
-	parts := make([]string, 0, 16)
-	seen := make(map[string]bool)
-	for _, beta := range strings.Split(betas, ",") {
-		if beta = strings.TrimSpace(beta); beta != "" && beta != claudeContext1MBeta && !seen[beta] {
-			parts = append(parts, beta)
-			seen[beta] = true
-		}
-	}
-	insertAt := 0
-	for insertAt < len(parts) && (parts[insertAt] == claudeCodeBeta || parts[insertAt] == claudeOAuthBeta) {
-		insertAt++
-	}
-	parts = append(parts, "")
-	copy(parts[insertAt+1:], parts[insertAt:])
-	parts[insertAt] = claudeContext1MBeta
-	return strings.Join(parts, ",")
-}
-
-// claudeModelLacksContext1M reports first-party Claude models that were never
-// offered with the 1M context window. Unknown and newer models are allowed so
-// the upstream stays the authority for them.
-func claudeModelLacksContext1M(model string) bool {
-	model = strings.ToLower(strings.TrimSpace(thinking.ParseSuffix(model).ModelName))
-	if idx := strings.LastIndex(model, "/"); idx >= 0 {
-		model = model[idx+1:]
-	}
-	if !strings.HasPrefix(model, "claude-") {
-		return false
-	}
-	// Claude 2 and 3.x (Haiku 3/3.5 included) and Haiku 4.x cap at 200K or less.
-	if strings.HasPrefix(model, "claude-haiku-4") || strings.HasPrefix(model, "claude-2") || strings.HasPrefix(model, "claude-3") || strings.HasPrefix(model, "claude-instant") {
-		return true
-	}
-	// Opus 4, 4.1 and 4.5 cap at 200K; Opus 4.6 and later support 1M.
-	for _, family := range []string{"claude-opus-4-0", "claude-opus-4-1", "claude-opus-4-5"} {
-		if model == family || strings.HasPrefix(model, family+"-") {
-			return true
-		}
-	}
-	return model == "claude-opus-4" || strings.HasPrefix(model, "claude-opus-4-2025")
-}
-
-// claudeContext1MModelError rejects a "[1m]" request for a model without a 1M
-// context window before it reaches the upstream. Like the other body/model
-// incompatibilities it is request-scoped: no credential is cooled or rotated.
-type claudeContext1MModelError struct {
-	statusErr
-}
-
-func (claudeContext1MModelError) IsRequestScoped() bool {
-	return true
-}
-
-func newClaudeContext1MModelError(model string) error {
-	return claudeContext1MModelError{statusErr{
-		code: http.StatusBadRequest,
-		msg: fmt.Sprintf("invalid_request_error: model %q does not support the 1M context window; "+
-			"remove the [1m] suffix or choose a model that supports it", model),
-	}}
-}
-
 // claudeEntitlementError marks an upstream refusal that is a property of the
 // request shape combined with the account's entitlements, not of the credential's
 // health. The auth manager must neither rotate nor cool down on these.
@@ -725,12 +656,6 @@ func classifyClaudeUpstreamErrorWithCooling(statusCode int, headers http.Header,
 		retryAfter = helps.ParseClaudeRateLimitReset(headers, time.Now())
 	}
 	err := statusErr{code: statusCode, msg: string(body), retryAfter: retryAfter}
-	// A long-context refusal is about the request's 1M window versus the
-	// account's entitlements; cooling the credential would also block its
-	// ordinary traffic, so it belongs to the request like fast mode below.
-	if statusCode >= 400 && statusCode < 500 && claudeBodyIndicatesLongContextEntitlement(body) {
-		return claudeEntitlementError{err}
-	}
 	if statusCode == http.StatusTooManyRequests {
 		if !modelLevelCooling && helps.ClaudeHeadersIndicateUnifiedRateLimitRejection(headers) {
 			return claudeRateLimitError{statusErr: err, credentialScoped: true}
@@ -754,18 +679,6 @@ func claudeBodyIndicatesFastModeCredits(body []byte) bool {
 	return strings.Contains(message, "fast request rejected") ||
 		(strings.Contains(message, "fast") &&
 			(strings.Contains(message, "usage credits") || strings.Contains(message, "credits are required")))
-}
-
-// claudeBodyIndicatesLongContextEntitlement matches Anthropic's refusals of a
-// 1M-context request for an account without long-context access, e.g.
-// "Extra usage is required for long context requests." or "The long context
-// beta is not yet available for this subscription."
-func claudeBodyIndicatesLongContextEntitlement(body []byte) bool {
-	message := strings.ToLower(gjson.GetBytes(body, "error.message").String())
-	if message == "" {
-		message = strings.ToLower(string(body))
-	}
-	return strings.Contains(message, "long context")
 }
 
 // claudeRequestedBetas collects every beta the caller asked for, from the
@@ -1206,11 +1119,6 @@ func applyClaudeHeadersWithNativeProfile(
 				includeExtendedCacheTTL := (!isSubagent || subagent1h) && !isProbe
 				baseBetas = withClaudeOAuthCredentialBetas(baseBetas, includeExtendedCacheTTL)
 			}
-		}
-		// The native client sends context-1m itself for "[1m]" models; this
-		// covers the proxy-detected case where only the model name carried it.
-		if requestedMap[claudeContext1MBeta] {
-			baseBetas = withClaudeContext1MBeta(baseBetas)
 		}
 	}
 	if preserveCallerFingerprint && advisorNeeded {

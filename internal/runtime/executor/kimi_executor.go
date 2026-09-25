@@ -42,7 +42,6 @@ func NewKimiExecutor(cfg *config.Config) *KimiExecutor {
 			cfg:                     cfg,
 			requestLogProvider:      "kimi",
 			upstreamModelNormalizer: normalizeKimiUpstreamModel,
-			skipContext1MBeta:       true,
 		},
 		cfg: cfg,
 	}

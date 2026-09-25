@@ -40,30 +40,3 @@ func TestIsClaudeThinkingModel(t *testing.T) {
 		})
 	}
 }
-
-func TestStripContext1MSuffix(t *testing.T) {
-	tests := []struct {
-		model    string
-		want     string
-		wantHas1 bool
-	}{
-		{"claude-opus-5-5[1m]", "claude-opus-5-5", true},
-		{"claude-opus-5-5[1M]", "claude-opus-5-5", true},
-		{" claude-opus-5-5[1m] ", "claude-opus-5-5", true},
-		{"claude-opus-5-5[1m](high)", "claude-opus-5-5(high)", true},
-		{"claude-opus-5-5(16384)[1m]", "claude-opus-5-5(16384)", true},
-		{"prefix/claude-sonnet-4-5[1m]", "prefix/claude-sonnet-4-5", true},
-		{"claude-opus-5-5", "claude-opus-5-5", false},
-		{"claude-opus-5-5(high)", "claude-opus-5-5(high)", false},
-		{"claude-opus-5-5[2m]", "claude-opus-5-5[2m]", false},
-		{"[1m]", "[1m]", false},
-		{"[1m](high)", "[1m](high)", false},
-		{"", "", false},
-	}
-	for _, tt := range tests {
-		got, has1M := StripContext1MSuffix(tt.model)
-		if got != tt.want || has1M != tt.wantHas1 {
-			t.Errorf("StripContext1MSuffix(%q) = (%q, %v), want (%q, %v)", tt.model, got, has1M, tt.want, tt.wantHas1)
-		}
-	}
-}

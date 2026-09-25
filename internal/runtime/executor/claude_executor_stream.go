@@ -24,6 +24,9 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	if opts.Alt == "responses/compact" {
 		return nil, statusErr{code: http.StatusNotImplemented, msg: "/responses/compact not supported"}
 	}
+	originalModel := req.Model
+	var context1M bool
+	req.Model, context1M = claudeContext1MModel(req, opts)
 	baseModel := thinking.ParseSuffix(req.Model).ModelName
 	upstreamModel := e.upstreamModel(baseModel)
 
@@ -249,6 +252,10 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 	// Extract betas from body and convert to header
 	var extraBetas []string
 	extraBetas, body = extractAndRemoveBetas(body)
+	extraBetas, err = e.context1MBetas(extraBetas, context1M, gjson.GetBytes(body, "model").String())
+	if err != nil {
+		return nil, err
+	}
 	bodyForTranslation := body
 	bodyForUpstream := body
 	var oauthToolNamesReverseMap map[string]string
@@ -430,7 +437,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 					emitResponseError(fmt.Errorf("restore Claude OAuth tool name from streaming response: %w", errRestore))
 					return
 				}
-				line = e.restoreResponseModel(restoredLine, req.Model)
+				line = e.restoreResponseModel(restoredLine, originalModel)
 				event.Write(line)
 				event.WriteByte('\n')
 				if len(bytes.TrimSpace(line)) == 0 {
@@ -485,7 +492,7 @@ func (e *ClaudeExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.A
 				emitResponseError(fmt.Errorf("restore Claude OAuth tool name from streaming response: %w", errRestore))
 				return
 			}
-			line = e.restoreResponseModel(restoredLine, req.Model)
+			line = e.restoreResponseModel(restoredLine, originalModel)
 			chunks := sdktranslator.TranslateStream(
 				ctx,
 				to,

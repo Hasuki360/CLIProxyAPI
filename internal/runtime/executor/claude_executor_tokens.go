@@ -20,6 +20,9 @@ import (
 )
 
 func (e *ClaudeExecutor) CountTokens(ctx context.Context, auth *cliproxyauth.Auth, req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (cliproxyexecutor.Response, error) {
+	// Token counting does not depend on the context window, so a "[1m]" marker
+	// only needs to leave the model name.
+	req.Model, _ = claudeContext1MModel(req, opts)
 	apiKey, baseURL := claudeCreds(auth)
 	if baseURL == "" {
 		baseURL = "https://api.anthropic.com"

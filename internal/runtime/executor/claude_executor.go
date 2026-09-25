@@ -13,6 +13,7 @@ import (
 	sigcompat "github.com/router-for-me/CLIProxyAPI/v7/internal/signature"
 	"github.com/router-for-me/CLIProxyAPI/v7/internal/util"
 	cliproxyauth "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/auth"
+	cliproxyexecutor "github.com/router-for-me/CLIProxyAPI/v7/sdk/cliproxy/executor"
 	log "github.com/sirupsen/logrus"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -25,6 +26,38 @@ type ClaudeExecutor struct {
 	requestLogProvider      string
 	upstreamModelNormalizer func(string) string
 	oauthProfileFetcher     claudeOAuthProfileFetcher
+	// skipContext1MBeta keeps delegating executors whose upstream is not a
+	// Claude model (Kimi) from receiving a proxy-added context-1m beta.
+	skipContext1MBeta bool
+}
+
+// claudeContext1MModel strips Claude Code's "[1m]" context-window marker from
+// the execution model and reports whether the caller asked for the 1M window,
+// either on that model or on the client-requested model, which keeps the marker
+// after the handler routed the request as its base model.
+func claudeContext1MModel(req cliproxyexecutor.Request, opts cliproxyexecutor.Options) (string, bool) {
+	model, context1M := util.StripContext1MSuffix(req.Model)
+	if _, requested := util.StripContext1MSuffix(helps.PayloadRequestedModel(opts, "")); requested {
+		context1M = true
+	}
+	return model, context1M
+}
+
+// context1MBetas adds context-1m-2025-08-07 to the request betas for a 1M
+// request, rejecting models that never had a 1M context window.
+func (e *ClaudeExecutor) context1MBetas(extraBetas []string, context1M bool, upstreamModel string) ([]string, error) {
+	if !context1M || e.skipContext1MBeta {
+		return extraBetas, nil
+	}
+	if claudeModelLacksContext1M(upstreamModel) {
+		return extraBetas, newClaudeContext1MModelError(upstreamModel)
+	}
+	for _, beta := range extraBetas {
+		if strings.TrimSpace(beta) == claudeContext1MBeta {
+			return extraBetas, nil
+		}
+	}
+	return append(extraBetas, claudeContext1MBeta), nil
 }
 
 type claudeOAuthCancellationError struct {

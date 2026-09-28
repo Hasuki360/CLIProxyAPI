@@ -1090,6 +1090,26 @@ func (m *Manager) retrySettings() (int, int, time.Duration) {
 	return int(m.requestRetry.Load()), int(m.maxRetryCredentials.Load()), time.Duration(m.maxRetryInterval.Load())
 }
 
+func (m *Manager) retrySettingsForModel(model string) (int, int, time.Duration) {
+	defaultRetry, maxCreds, maxWait := m.retrySettings()
+	if m == nil || strings.TrimSpace(model) == "" {
+		return defaultRetry, maxCreds, maxWait
+	}
+	cfg := m.runtimeConfigSnapshot()
+	if cfg == nil {
+		return defaultRetry, maxCreds, maxWait
+	}
+	if rule, ok := cfg.FindModelRetry(model); ok {
+		if rule.RequestRetry >= 0 {
+			defaultRetry = rule.RequestRetry
+		}
+		if rule.MaxRetryInterval != nil && *rule.MaxRetryInterval >= 0 {
+			maxWait = time.Duration(*rule.MaxRetryInterval) * time.Second
+		}
+	}
+	return defaultRetry, maxCreds, maxWait
+}
+
 func effectiveRequestRetryLimit(auth *Auth, defaultRetry int) int {
 	if defaultRetry < 0 {
 		defaultRetry = 0
@@ -1321,7 +1341,7 @@ func (m *Manager) retryAllowed(attempt int, providers []string, model string, el
 }
 
 func (m *Manager) shouldRetryAfterError(err error, attempt int, providers []string, model string, maxWait time.Duration) (time.Duration, bool) {
-	defaultRequestRetry, _, _ := m.retrySettings()
+	defaultRequestRetry, _, _ := m.retrySettingsForModel(model)
 	return m.shouldRetryAfterErrorWithHomeRetryLimit(context.Background(), cliproxyexecutor.Options{}, err, attempt, providers, model, maxWait, -1, defaultRequestRetry)
 }
 

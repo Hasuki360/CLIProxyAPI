@@ -448,3 +448,23 @@ func NormalizeOAuthExcludedModels(entries map[string][]string) map[string][]stri
 	}
 	return out
 }
+
+// SanitizeModelRetry normalizes model-specific retry rules.
+func (cfg *Config) SanitizeModelRetry() {
+	if cfg == nil || len(cfg.ModelRetry) == 0 {
+		return
+	}
+	clean := make(ModelRetryRules, 0, len(cfg.ModelRetry))
+	for _, rule := range cfg.ModelRetry {
+		model := strings.TrimSpace(rule.Model)
+		if model == "" {
+			continue
+		}
+		rule.Model = model
+		if rule.RequestRetry < 0 {
+			rule.RequestRetry = 0
+		}
+		clean = append(clean, rule)
+	}
+	cfg.ModelRetry = clean
+}

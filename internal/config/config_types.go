@@ -24,6 +24,125 @@ type RequestScopedErrorRule struct {
 	Action string `yaml:"action,omitempty" json:"action,omitempty"`
 }
 
+// ModelRetryRule configures model-specific retry overrides.
+type ModelRetryRule struct {
+	Model            string `yaml:"model" json:"model"`
+	RequestRetry     int    `yaml:"request-retry" json:"request-retry"`
+	MaxRetryInterval *int   `yaml:"max-retry-interval,omitempty" json:"max-retry-interval,omitempty"`
+}
+
+// ModelRetryRules is a list of model-specific retry rules supporting flexible YAML formats.
+type ModelRetryRules []ModelRetryRule
+
+// UnmarshalYAML supports unmarshaling from either a list of ModelRetryRule or a map[string]int / map[string]ModelRetryRule.
+func (rules *ModelRetryRules) UnmarshalYAML(value *yaml.Node) error {
+	if value == nil {
+		return nil
+	}
+	if value.Kind == yaml.SequenceNode {
+		var list []ModelRetryRule
+		if err := value.Decode(&list); err != nil {
+			return err
+		}
+		*rules = list
+		return nil
+	}
+	if value.Kind == yaml.MappingNode {
+		var ruleMap map[string]ModelRetryRule
+		if err := value.Decode(&ruleMap); err == nil && len(ruleMap) > 0 {
+			out := make([]ModelRetryRule, 0, len(ruleMap))
+			for model, r := range ruleMap {
+				if r.Model == "" {
+					r.Model = model
+				}
+				out = append(out, r)
+			}
+			*rules = out
+			return nil
+		}
+		var simpleMap map[string]int
+		if err := value.Decode(&simpleMap); err == nil {
+			out := make([]ModelRetryRule, 0, len(simpleMap))
+			for model, retry := range simpleMap {
+				out = append(out, ModelRetryRule{Model: model, RequestRetry: retry})
+			}
+			*rules = out
+			return nil
+		}
+	}
+	return nil
+}
+
+func (rules ModelRetryRules) Find(model string) (ModelRetryRule, bool) {
+	if len(rules) == 0 || strings.TrimSpace(model) == "" {
+		return ModelRetryRule{}, false
+	}
+	model = strings.TrimSpace(model)
+	for _, rule := range rules {
+		if strings.EqualFold(rule.Model, model) || matchWildcard(rule.Model, model) {
+			return rule, true
+		}
+	}
+	return ModelRetryRule{}, false
+}
+
+func (rules ModelRetryRules) Has(model string) bool {
+	_, ok := rules.Find(model)
+	return ok
+}
+
+// FindModelRetry finds the first matching ModelRetryRule for the model.
+func (cfg *Config) FindModelRetry(model string) (ModelRetryRule, bool) {
+	if cfg == nil {
+		return ModelRetryRule{}, false
+	}
+	return cfg.ModelRetry.Find(model)
+}
+
+// HasModelRetry reports whether any ModelRetryRule matches the model.
+func (cfg *Config) HasModelRetry(model string) bool {
+	if cfg == nil {
+		return false
+	}
+	return cfg.ModelRetry.Has(model)
+}
+
+func matchWildcard(pattern, value string) bool {
+	if pattern == "" || value == "" {
+		return false
+	}
+	if !strings.Contains(pattern, "*") {
+		return strings.EqualFold(pattern, value)
+	}
+	pattern = strings.ToLower(pattern)
+	value = strings.ToLower(value)
+	parts := strings.Split(pattern, "*")
+	if prefix := parts[0]; prefix != "" {
+		if !strings.HasPrefix(value, prefix) {
+			return false
+		}
+		value = value[len(prefix):]
+	}
+	if suffix := parts[len(parts)-1]; suffix != "" {
+		if !strings.HasSuffix(value, suffix) {
+			return false
+		}
+		value = value[:len(value)-len(suffix)]
+	}
+	for i := 1; i < len(parts)-1; i++ {
+		segment := parts[i]
+		if segment == "" {
+			continue
+		}
+		idx := strings.Index(value, segment)
+		if idx < 0 {
+			return false
+		}
+		value = value[idx+len(segment):]
+	}
+	return true
+}
+
 // PluginsConfig holds dynamic plugin system settings.
 type PluginsConfig struct {
 	// Enabled toggles dynamic plugin loading.

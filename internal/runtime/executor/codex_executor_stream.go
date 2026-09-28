@@ -139,7 +139,7 @@ func (e *CodexExecutor) ExecuteStream(ctx context.Context, auth *cliproxyauth.Au
 		return nil, err
 	}
 
-	buffering := e.cfg != nil && e.cfg.Codex.StreamBootstrapBuffering
+	buffering := (e.cfg != nil && e.cfg.Codex.StreamBootstrapBuffering) || (e.cfg != nil && e.cfg.HasModelRetry(req.Model))
 	var bootstrapTimeout time.Duration
 	var bootstrapStart time.Time
 	if buffering {

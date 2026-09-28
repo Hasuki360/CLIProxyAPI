@@ -130,11 +130,11 @@ func (m *Manager) Execute(ctx context.Context, providers []string, req cliproxye
 		return resp, unwrapExecutionBoundaryError(errHome)
 	}
 
-	defaultRequestRetry, maxRetryCredentials, maxWait := m.retrySettings()
+	retryModel := authSelectionModelFromOptions(opts, req.Model)
+	defaultRequestRetry, maxRetryCredentials, maxWait := m.retrySettingsForModel(retryModel)
 
 	var lastErr error
 	var preferredUpstreamErr error
-	retryModel := authSelectionModelFromOptions(opts, req.Model)
 	for attempt := 0; ; attempt++ {
 		roundAttempted := make(map[string]struct{})
 		roundOpts := withAttemptedAuthTracker(opts, roundAttempted)
@@ -190,11 +190,11 @@ func (m *Manager) ExecuteCount(ctx context.Context, providers []string, req clip
 		return resp, unwrapExecutionBoundaryError(errHome)
 	}
 
-	defaultRequestRetry, maxRetryCredentials, maxWait := m.retrySettings()
+	retryModel := authSelectionModelFromOptions(opts, req.Model)
+	defaultRequestRetry, maxRetryCredentials, maxWait := m.retrySettingsForModel(retryModel)
 
 	var lastErr error
 	var preferredUpstreamErr error
-	retryModel := authSelectionModelFromOptions(opts, req.Model)
 	for attempt := 0; ; attempt++ {
 		roundAttempted := make(map[string]struct{})
 		roundOpts := withAttemptedAuthTracker(opts, roundAttempted)
@@ -244,12 +244,12 @@ func (m *Manager) ExecuteStream(ctx context.Context, providers []string, req cli
 		return nil, &Error{Code: "provider_not_found", Message: "no provider supplied"}
 	}
 
-	defaultRequestRetry, maxRetryCredentials, maxWait := m.retrySettings()
+	retryModel := authSelectionModelFromOptions(opts, req.Model)
+	defaultRequestRetry, maxRetryCredentials, maxWait := m.retrySettingsForModel(retryModel)
 
 	var lastErr error
 	var preferredUpstreamErr error
 	homeRetryLimit := -1
-	retryModel := authSelectionModelFromOptions(opts, req.Model)
 	attempt := 0
 	retryRoundPending := false
 	retryRoundWaited := false

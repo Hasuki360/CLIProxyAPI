@@ -605,7 +605,13 @@ func observeCodexTokenEvent(reporter *helps.UsageReporter, payload []byte) {
 // change would alter cooldown classification and retry-after parsing for everyone. Keeping 503
 // scoped to this path means disabling the feature restores the previous behaviour exactly.
 func newCodexBootstrapOverloadErr(body []byte) statusErr {
-	return newCodexStatusErr(http.StatusServiceUnavailable, body)
+	status := http.StatusServiceUnavailable
+	errorCode := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "error.code").String()))
+	errorType := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "error.type").String()))
+	if errorCode == "rate_limit_exceeded" || errorType == "rate_limit_error" || errorType == "too_many_requests" {
+		status = http.StatusTooManyRequests
+	}
+	return newCodexStatusErr(status, body)
 }
 
 // isCodexOverloadBootstrapFailure reports whether a terminal failure delivered inside an HTTP 200
@@ -625,7 +631,7 @@ func isCodexOverloadBootstrapFailure(body []byte) bool {
 	switch {
 	case errorType == "service_unavailable_error", errorCode == "server_is_overloaded":
 		return true
-	case errorType == "rate_limit_error", errorCode == "rate_limit_exceeded":
+	case errorType == "rate_limit_error", errorCode == "rate_limit_exceeded", errorType == "too_many_requests":
 		return true
 	case (errorType == "server_error" || errorCode == "server_error") && strings.Contains(errorMessage, "you can retry your request"):
 		return true

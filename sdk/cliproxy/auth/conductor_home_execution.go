@@ -15,8 +15,8 @@ func (m *Manager) executeHome(ctx context.Context, providers []string, req clipr
 	if unlockSession := m.lockHomeWebsocketSession(ctx, opts); unlockSession != nil {
 		defer unlockSession()
 	}
-	defaultRequestRetry, maxRetryCredentials, maxWait := m.retrySettings()
 	retryModel := authSelectionModelFromOptions(opts, req.Model)
+	defaultRequestRetry, maxRetryCredentials, maxWait := m.retrySettingsForModel(retryModel)
 	homeRetryLimit := -1
 	attempt := 0
 	retryRoundPending := false

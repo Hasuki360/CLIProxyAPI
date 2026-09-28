@@ -96,6 +96,9 @@ type Config struct {
 	// failover or immediate additional rounds allowed by RequestRetry.
 	MaxRetryInterval int `yaml:"max-retry-interval" json:"max-retry-interval"`
 
+	// ModelRetry configures model-specific request-retry overrides.
+	ModelRetry ModelRetryRules `yaml:"model-retry,omitempty" json:"model-retry,omitempty"`
+
 	// QuotaExceeded defines the behavior when a quota is exceeded.
 	QuotaExceeded QuotaExceeded `yaml:"quota-exceeded" json:"quota-exceeded"`
 

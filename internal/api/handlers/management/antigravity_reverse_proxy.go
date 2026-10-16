@@ -52,6 +52,8 @@ func (h *Handler) PutAntigravityReverseProxy(c *gin.Context) {
 	if enabled == nil && body.Value != nil {
 		enabled = body.Value
 	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if enabled != nil {
 		h.cfg.Antigravity.ReverseProxy.Enabled = enabled
 	}
@@ -63,5 +65,5 @@ func (h *Handler) PutAntigravityReverseProxy(c *gin.Context) {
 		trimmed := strings.TrimSpace(*body.TokenURL)
 		h.cfg.Antigravity.ReverseProxy.TokenURL = trimmed
 	}
-	h.persist(c)
+	h.persistLocked(c)
 }

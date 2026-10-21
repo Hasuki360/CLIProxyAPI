@@ -278,7 +278,7 @@ func (o *AntigravityAuth) FetchProjectID(ctx context.Context, accessToken string
 		return "", fmt.Errorf("marshal request body: %w", errMarshal)
 	}
 
-	baseURL := APIEndpoint
+	baseURL := DailyAPIEndpoint
 	if o.cfg != nil && o.cfg.Antigravity.IsReverseProxyEnabled() {
 		baseURL = o.cfg.Antigravity.ReverseProxyBaseURL()
 	}
@@ -292,7 +292,6 @@ func (o *AntigravityAuth) FetchProjectID(ctx context.Context, accessToken string
 		req.Host = host
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", userAgent)
 

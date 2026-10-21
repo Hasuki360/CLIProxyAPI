@@ -602,17 +602,11 @@ func (e *AntigravityExecutor) resolveAntigravityRequestBaseURL(auth *cliproxyaut
 }
 
 func antigravityLoadCodeAssistBaseURL(auth *cliproxyauth.Auth) string {
-	return antigravityLoadCodeAssistBaseURLWithConfig(nil, auth)
+	return resolveAntigravityRequestBaseURL(auth)
 }
 
 func antigravityLoadCodeAssistBaseURLWithConfig(cfg *config.Config, auth *cliproxyauth.Auth) string {
-	if base := resolveCustomAntigravityBaseURL(auth); base != "" {
-		return base
-	}
-	if cfg != nil && cfg.Antigravity.IsReverseProxyEnabled() {
-		return cfg.Antigravity.ReverseProxyBaseURL()
-	}
-	return antigravityBaseURLProd
+	return resolveAntigravityRequestBaseURLWithConfig(cfg, auth)
 }
 
 func (e *AntigravityExecutor) antigravityLoadCodeAssistBaseURL(auth *cliproxyauth.Auth) string {

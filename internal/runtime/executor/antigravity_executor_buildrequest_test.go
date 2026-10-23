@@ -82,8 +82,8 @@ func TestResolveAntigravityRequestBaseURL(t *testing.T) {
 		if got := e.resolveAntigravityRequestBaseURL(&cliproxyauth.Auth{}); got != antigravityBaseURLDaily {
 			t.Fatalf("base URL = %q, want %q", got, antigravityBaseURLDaily)
 		}
-		if got := e.antigravityLoadCodeAssistBaseURL(&cliproxyauth.Auth{}); got != antigravityBaseURLProd {
-			t.Fatalf("loadCodeAssist base URL = %q, want %q", got, antigravityBaseURLProd)
+		if got := e.antigravityLoadCodeAssistBaseURL(&cliproxyauth.Auth{}); got != antigravityBaseURLDaily {
+			t.Fatalf("loadCodeAssist base URL = %q, want %q", got, antigravityBaseURLDaily)
 		}
 	})
 

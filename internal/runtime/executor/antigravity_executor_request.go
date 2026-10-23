@@ -602,11 +602,20 @@ func (e *AntigravityExecutor) resolveAntigravityRequestBaseURL(auth *cliproxyaut
 }
 
 func antigravityLoadCodeAssistBaseURL(auth *cliproxyauth.Auth) string {
-	return resolveAntigravityRequestBaseURL(auth)
+	return antigravityLoadCodeAssistBaseURLWithConfig(nil, auth)
 }
 
+// antigravityLoadCodeAssistBaseURLWithConfig mirrors upstream: loadCodeAssist defaults to
+// the daily tier, while explicit custom base URLs and the Hasuki ag.hasuki.top reverse
+// proxy toggle still take precedence.
 func antigravityLoadCodeAssistBaseURLWithConfig(cfg *config.Config, auth *cliproxyauth.Auth) string {
-	return resolveAntigravityRequestBaseURLWithConfig(cfg, auth)
+	if base := resolveCustomAntigravityBaseURL(auth); base != "" {
+		return base
+	}
+	if cfg != nil && cfg.Antigravity.IsReverseProxyEnabled() {
+		return cfg.Antigravity.ReverseProxyBaseURL()
+	}
+	return antigravityBaseURLDaily
 }
 
 func (e *AntigravityExecutor) antigravityLoadCodeAssistBaseURL(auth *cliproxyauth.Auth) string {

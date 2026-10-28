@@ -592,9 +592,6 @@ func resolveAntigravityRequestBaseURLWithConfig(cfg *config.Config, auth *clipro
 	if base := resolveCustomAntigravityBaseURL(auth); base != "" {
 		return base
 	}
-	if cfg != nil && cfg.Antigravity.IsReverseProxyEnabled() {
-		return cfg.Antigravity.ReverseProxyBaseURL()
-	}
 	return antigravityBaseURLDaily
 }
 
@@ -611,14 +608,10 @@ func antigravityLoadCodeAssistBaseURL(auth *cliproxyauth.Auth) string {
 }
 
 // antigravityLoadCodeAssistBaseURLWithConfig mirrors upstream: loadCodeAssist defaults to
-// the daily tier, while explicit custom base URLs and the Hasuki ag.hasuki.top reverse
-// proxy toggle still take precedence.
+// the daily tier, while explicit custom base URLs still take precedence.
 func antigravityLoadCodeAssistBaseURLWithConfig(cfg *config.Config, auth *cliproxyauth.Auth) string {
 	if base := resolveCustomAntigravityBaseURL(auth); base != "" {
 		return base
-	}
-	if cfg != nil && cfg.Antigravity.IsReverseProxyEnabled() {
-		return cfg.Antigravity.ReverseProxyBaseURL()
 	}
 	return antigravityBaseURLDaily
 }

@@ -151,15 +151,7 @@ func (e *AntigravityExecutor) refreshToken(ctx context.Context, auth *cliproxyau
 }
 
 func (e *AntigravityExecutor) resolveTokenURL() (string, string) {
-	tokenURL := "https://oauth2.googleapis.com/token"
-	tokenHost := "oauth2.googleapis.com"
-	if e != nil && e.cfg != nil && e.cfg.Antigravity.IsReverseProxyEnabled() {
-		tokenURL = e.cfg.Antigravity.ReverseProxyTokenURL()
-		if h := resolveHost(tokenURL); h != "" {
-			tokenHost = h
-		}
-	}
-	return tokenURL, tokenHost
+	return "https://oauth2.googleapis.com/token", "oauth2.googleapis.com"
 }
 
 func (e *AntigravityExecutor) refreshTokenSingleFlight(ctx context.Context, auth *cliproxyauth.Auth, refreshToken string) (*antigravityTokenRefreshData, error) {

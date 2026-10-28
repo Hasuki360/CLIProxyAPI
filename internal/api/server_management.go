@@ -81,9 +81,6 @@ func (s *Server) registerManagementRoutes() {
 		mgmt.PATCH("/quota-exceeded/switch-preview-model", s.mgmt.PutSwitchPreviewModel)
 		mgmt.POST("/reset-quota", s.mgmt.ResetQuota)
 
-		mgmt.GET("/antigravity/reverse-proxy", s.mgmt.GetAntigravityReverseProxy)
-		mgmt.PUT("/antigravity/reverse-proxy", s.mgmt.PutAntigravityReverseProxy)
-		mgmt.PATCH("/antigravity/reverse-proxy", s.mgmt.PutAntigravityReverseProxy)
 
 		mgmt.GET("/quota/providers", s.mgmt.GetQuotaProviders)
 		mgmt.POST("/quota/fetch", s.mgmt.FetchCredentialQuota)

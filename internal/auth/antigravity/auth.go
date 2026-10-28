@@ -177,9 +177,6 @@ func (o *AntigravityAuth) ExchangeCodeForTokens(ctx context.Context, code, redir
 	data.Set("grant_type", "authorization_code")
 
 	tokenURL := TokenEndpoint
-	if o.cfg != nil && o.cfg.Antigravity.IsReverseProxyEnabled() {
-		tokenURL = o.cfg.Antigravity.ReverseProxyTokenURL()
-	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(data.Encode()))
 	if err != nil {
@@ -279,9 +276,6 @@ func (o *AntigravityAuth) FetchProjectID(ctx context.Context, accessToken string
 	}
 
 	baseURL := DailyAPIEndpoint
-	if o.cfg != nil && o.cfg.Antigravity.IsReverseProxyEnabled() {
-		baseURL = o.cfg.Antigravity.ReverseProxyBaseURL()
-	}
 
 	endpointURL := fmt.Sprintf("%s/%s:loadCodeAssist", baseURL, APIVersion)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, strings.NewReader(string(rawBody)))
@@ -364,9 +358,6 @@ func (o *AntigravityAuth) OnboardUser(ctx context.Context, accessToken, tierID s
 		reqCtx, cancel = context.WithTimeout(reqCtx, 30*time.Second)
 
 		baseURL := DailyAPIEndpoint
-		if o.cfg != nil && o.cfg.Antigravity.IsReverseProxyEnabled() {
-			baseURL = o.cfg.Antigravity.ReverseProxyBaseURL()
-		}
 		endpointURL := fmt.Sprintf("%s/%s:onboardUser", baseURL, APIVersion)
 		req, errRequest := http.NewRequestWithContext(reqCtx, http.MethodPost, endpointURL, strings.NewReader(string(rawBody)))
 		if errRequest != nil {

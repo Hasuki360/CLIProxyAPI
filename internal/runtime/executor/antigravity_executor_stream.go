@@ -217,6 +217,7 @@ func (e *AntigravityExecutor) ExecuteStream(ctx context.Context, auth *cliproxya
 		scanner.Buffer(nil, streamScannerBuffer)
 		claudeInputTokens := helps.NewClaudeInputTokenState(from, to, responseFormat, originalPayload)
 		var streamUsage helps.StreamUsageBuffer
+		streamUsage.SetRequestPayload(requestPayload)
 		var streamErr error
 		var pendingJSON []byte
 		var replayCommitted bool
@@ -272,7 +273,7 @@ func (e *AntigravityExecutor) ExecuteStream(ctx context.Context, auth *cliproxya
 			}
 
 			// Capture accounting before the client-facing filter renames usage.
-			streamUsage.Observe(helps.ParseAntigravityStreamUsage(line))
+			streamUsage.ObserveAntigravityStream(line)
 
 			// Filter usage metadata for all models
 			// Only retain usage statistics in the terminal chunk

@@ -355,7 +355,6 @@ type AntigravityConfig struct {
 
 	// ConnectionPool configures upstream HTTP connection pooling behavior for Antigravity.
 	ConnectionPool AntigravityConnectionPoolConfig `yaml:"connection-pool,omitempty" json:"connection-pool,omitempty"`
-
 }
 
 // AntigravityConnectionPoolConfig controls upstream HTTP/1.1 connection pooling behavior for Antigravity.

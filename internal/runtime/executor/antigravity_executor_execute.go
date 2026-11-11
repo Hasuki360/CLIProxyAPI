@@ -153,12 +153,12 @@ func (e *AntigravityExecutor) Execute(ctx context.Context, auth *cliproxyauth.Au
 	if errClose := httpResp.Body.Close(); errClose != nil {
 		log.Errorf("antigravity executor: close response body error: %v", errClose)
 	}
+	helps.AppendAPIResponseChunk(ctx, e.cfg, bodyBytes)
 	if errRead != nil {
 		helps.RecordAPIResponseError(ctx, e.cfg, errRead)
 		err = errRead
 		return resp, err
 	}
-	helps.AppendAPIResponseChunk(ctx, e.cfg, bodyBytes)
 
 	if httpResp.StatusCode == http.StatusTooManyRequests {
 		decision := decideAntigravity429(bodyBytes)
@@ -375,6 +375,7 @@ func (e *AntigravityExecutor) executeClaudeNonStream(ctx context.Context, auth *
 		if errClose := httpResp.Body.Close(); errClose != nil {
 			log.Errorf("antigravity executor: close response body error: %v", errClose)
 		}
+		helps.AppendAPIResponseChunk(ctx, e.cfg, bodyBytes)
 		if errRead != nil {
 			helps.RecordAPIResponseError(ctx, e.cfg, errRead)
 			if errors.Is(errRead, context.Canceled) || errors.Is(errRead, context.DeadlineExceeded) {
@@ -388,7 +389,6 @@ func (e *AntigravityExecutor) executeClaudeNonStream(ctx context.Context, auth *
 			err = errRead
 			return resp, err
 		}
-		helps.AppendAPIResponseChunk(ctx, e.cfg, bodyBytes)
 		if httpResp.StatusCode == http.StatusTooManyRequests {
 			decision := decideAntigravity429(bodyBytes)
 
